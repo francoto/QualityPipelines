@@ -1,16 +1,19 @@
 import json
 import os
 
-from resqui.plugins.base import IndicatorPlugin
-from resqui.executors import DockerExecutor
 from resqui.core import CheckResult
+from resqui.executors import DockerExecutor
+from resqui.plugins.base import IndicatorPlugin
 from resqui.workspace import create_workspace
 
 
 class RSFC(IndicatorPlugin):
     name = "RSFC"
     id = "https://w3id.org/everse/tools/rsfc"
-    version = "0.1.7"
+    version = "0.1.8"
+    # The RSFC Docker CLI accepts local project directory analysis with --local,
+    # but the path must be inside a container-mounted volume.
+    supports_local_path = True
     image_url = f"docker.io/amonterodx/rsfc:{version}"
     indicators = [
         "persistent_and_unique_identifier",
@@ -26,7 +29,7 @@ class RSFC(IndicatorPlugin):
         "repository_workflows",
         "archived_in_software_heritage",
         "has_contribution_guidelines",
-        "software_is_containerized"
+        "software_is_containerized",
     ]
 
     def __init__(self, context):
@@ -42,7 +45,6 @@ class RSFC(IndicatorPlugin):
         url = url.removesuffix(".git")
 
         assessment_filename = "rsfc_assessment.json"
-
 
         with create_workspace(prefix="resqui-rsfc-") as workspace:
             if workspace.is_shared:
@@ -61,9 +63,17 @@ class RSFC(IndicatorPlugin):
                     "--rm",
                     *workspace.docker_mount_args("/rsfc/rsfc_output"),
                 ]
-                assessment_fpath = os.path.join(workspace.local_path, assessment_filename)
+                assessment_fpath = os.path.join(
+                    workspace.local_path, assessment_filename
+                )
 
-            command = ["--repo", url]
+            if self.context.local_path is not None:
+                local_project_path = os.path.abspath(self.context.local_path)
+                project_container_path = "/rsfc_project"
+                run_args += ["-v", f"{local_project_path}:{project_container_path}"]
+                command = ["--local", project_container_path]
+            else:
+                command = ["--repo", url]
             if self.context.github_token:
                 command += ["-t", self.context.github_token]
 
@@ -75,17 +85,17 @@ class RSFC(IndicatorPlugin):
 
             with open(assessment_fpath) as f:
                 report = json.load(f)
-                
+
         # New remapping for better management
         checks_by_id = {}
-        
+
         for check in report.get("checks", []):
             test_id_completo = check.get("test_id", "")
             test_id_corto = test_id_completo.split("/")[-1]
-            
+
             if test_id_corto:
                 checks_by_id[test_id_corto] = check
-                
+
         report = checks_by_id
 
         self._cache[cache_key] = report
@@ -93,9 +103,8 @@ class RSFC(IndicatorPlugin):
         return report
 
     def persistent_and_unique_identifier(self, url, branch_hash_or_tag):
-        
         # Last version (do not erase)
-        '''report = self.execute(url, branch_hash_or_tag)
+        """report = self.execute(url, branch_hash_or_tag)
         checks = report["checks"]
         check_list = []
 
@@ -116,8 +125,8 @@ class RSFC(IndicatorPlugin):
 
                 check_list.append(check_res)
 
-        return check_list'''
-        
+        return check_list"""
+
         report = self.execute(url, branch_hash_or_tag)
         check = report["RSFC-01-1"]
         if check["output"] == "true":
@@ -125,15 +134,14 @@ class RSFC(IndicatorPlugin):
         else:
             success = False
         check = CheckResult(
-                    process=check["process"],
-                    status_id=check["status"]["@id"],
-                    output=check["output"],
-                    evidence=check["evidence"],
-                    success=success,
-                )
-        
-        return check
+            process=check["process"],
+            status_id=check["status"]["@id"],
+            output=check["output"],
+            evidence=check["evidence"],
+            success=success,
+        )
 
+        return check
 
     def software_has_documentation(self, url, branch_hash_or_tag):
         report = self.execute(url, branch_hash_or_tag)
@@ -143,13 +151,13 @@ class RSFC(IndicatorPlugin):
         else:
             success = False
         check = CheckResult(
-                    process=check["process"],
-                    status_id=check["status"]["@id"],
-                    output=check["output"],
-                    evidence=check["evidence"],
-                    success=success,
-                )
-        
+            process=check["process"],
+            status_id=check["status"]["@id"],
+            output=check["output"],
+            evidence=check["evidence"],
+            success=success,
+        )
+
         return check
 
     def requirements_specified(self, url, branch_hash_or_tag):
@@ -160,13 +168,13 @@ class RSFC(IndicatorPlugin):
         else:
             success = False
         check = CheckResult(
-                    process=check["process"],
-                    status_id=check["status"]["@id"],
-                    output=check["output"],
-                    evidence=check["evidence"],
-                    success=success,
-                )
-        
+            process=check["process"],
+            status_id=check["status"]["@id"],
+            output=check["output"],
+            evidence=check["evidence"],
+            success=success,
+        )
+
         return check
 
     def has_releases(self, url, branch_hash_or_tag):
@@ -177,13 +185,13 @@ class RSFC(IndicatorPlugin):
         else:
             success = False
         check = CheckResult(
-                    process=check["process"],
-                    status_id=check["status"]["@id"],
-                    output=check["output"],
-                    evidence=check["evidence"],
-                    success=success,
-                )
-        
+            process=check["process"],
+            status_id=check["status"]["@id"],
+            output=check["output"],
+            evidence=check["evidence"],
+            success=success,
+        )
+
         return check
 
     def software_has_license(self, url, branch_hash_or_tag):
@@ -194,13 +202,13 @@ class RSFC(IndicatorPlugin):
         else:
             success = False
         check = CheckResult(
-                    process=check["process"],
-                    status_id=check["status"]["@id"],
-                    output=check["output"],
-                    evidence=check["evidence"],
-                    success=success,
-                )
-        
+            process=check["process"],
+            status_id=check["status"]["@id"],
+            output=check["output"],
+            evidence=check["evidence"],
+            success=success,
+        )
+
         return check
 
     def descriptive_metadata(self, url, branch_hash_or_tag):
@@ -211,13 +219,13 @@ class RSFC(IndicatorPlugin):
         else:
             success = False
         check = CheckResult(
-                    process=check["process"],
-                    status_id=check["status"]["@id"],
-                    output=check["output"],
-                    evidence=check["evidence"],
-                    success=success,
-                )
-        
+            process=check["process"],
+            status_id=check["status"]["@id"],
+            output=check["output"],
+            evidence=check["evidence"],
+            success=success,
+        )
+
         return check
 
     def versioning_standards_use(self, url, branch_hash_or_tag):
@@ -228,13 +236,13 @@ class RSFC(IndicatorPlugin):
         else:
             success = False
         check = CheckResult(
-                    process=check["process"],
-                    status_id=check["status"]["@id"],
-                    output=check["output"],
-                    evidence=check["evidence"],
-                    success=success,
-                )
-        
+            process=check["process"],
+            status_id=check["status"]["@id"],
+            output=check["output"],
+            evidence=check["evidence"],
+            success=success,
+        )
+
         return check
 
     def version_control_use(self, url, branch_hash_or_tag):
@@ -245,13 +253,13 @@ class RSFC(IndicatorPlugin):
         else:
             success = False
         check = CheckResult(
-                    process=check["process"],
-                    status_id=check["status"]["@id"],
-                    output=check["output"],
-                    evidence=check["evidence"],
-                    success=success,
-                )
-        
+            process=check["process"],
+            status_id=check["status"]["@id"],
+            output=check["output"],
+            evidence=check["evidence"],
+            success=success,
+        )
+
         return check
 
     def software_has_tests(self, url, branch_hash_or_tag):
@@ -262,13 +270,13 @@ class RSFC(IndicatorPlugin):
         else:
             success = False
         check = CheckResult(
-                    process=check["process"],
-                    status_id=check["status"]["@id"],
-                    output=check["output"],
-                    evidence=check["evidence"],
-                    success=success,
-                )
-        
+            process=check["process"],
+            status_id=check["status"]["@id"],
+            output=check["output"],
+            evidence=check["evidence"],
+            success=success,
+        )
+
         return check
 
     def software_has_citation(self, url, branch_hash_or_tag):
@@ -279,13 +287,13 @@ class RSFC(IndicatorPlugin):
         else:
             success = False
         check = CheckResult(
-                    process=check["process"],
-                    status_id=check["status"]["@id"],
-                    output=check["output"],
-                    evidence=check["evidence"],
-                    success=success,
-                )
-        
+            process=check["process"],
+            status_id=check["status"]["@id"],
+            output=check["output"],
+            evidence=check["evidence"],
+            success=success,
+        )
+
         return check
 
     def repository_workflows(self, url, branch_hash_or_tag):
@@ -296,13 +304,13 @@ class RSFC(IndicatorPlugin):
         else:
             success = False
         check = CheckResult(
-                    process=check["process"],
-                    status_id=check["status"]["@id"],
-                    output=check["output"],
-                    evidence=check["evidence"],
-                    success=success,
-                )
-        
+            process=check["process"],
+            status_id=check["status"]["@id"],
+            output=check["output"],
+            evidence=check["evidence"],
+            success=success,
+        )
+
         return check
 
     def archived_in_software_heritage(self, url, branch_hash_or_tag):
@@ -313,15 +321,15 @@ class RSFC(IndicatorPlugin):
         else:
             success = False
         check = CheckResult(
-                    process=check["process"],
-                    status_id=check["status"]["@id"],
-                    output=check["output"],
-                    evidence=check["evidence"],
-                    success=success,
-                )
-        
+            process=check["process"],
+            status_id=check["status"]["@id"],
+            output=check["output"],
+            evidence=check["evidence"],
+            success=success,
+        )
+
         return check
-    
+
     def has_contribution_guidelines(self, url, branch_hash_or_tag):
         report = self.execute(url, branch_hash_or_tag)
         check = report["RSFC-21-1"]
@@ -330,13 +338,13 @@ class RSFC(IndicatorPlugin):
         else:
             success = False
         check = CheckResult(
-                    process=check["process"],
-                    status_id=check["status"]["@id"],
-                    output=check["output"],
-                    evidence=check["evidence"],
-                    success=success,
-                )
-        
+            process=check["process"],
+            status_id=check["status"]["@id"],
+            output=check["output"],
+            evidence=check["evidence"],
+            success=success,
+        )
+
         return check
 
     def software_is_containerized(self, url, branch_hash_or_tag):
@@ -347,11 +355,11 @@ class RSFC(IndicatorPlugin):
         else:
             success = False
         check = CheckResult(
-                    process=check["process"],
-                    status_id=check["status"]["@id"],
-                    output=check["output"],
-                    evidence=check["evidence"],
-                    success=success,
-                )
-        
+            process=check["process"],
+            status_id=check["status"]["@id"],
+            output=check["output"],
+            evidence=check["evidence"],
+            success=success,
+        )
+
         return check
