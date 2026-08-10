@@ -126,3 +126,34 @@ class TestPluginSharedWorkspace(unittest.TestCase):
 
         command, _ = fake_executor.calls[0]
         self.assertNotIn("-t", command)
+
+    def test_rsfc_supports_local_path_mode(self):
+        self.assertTrue(RSFC.supports_local_path)
+
+    def test_rsfc_mounts_local_project_path_when_local_path_mode(self):
+        def fake_rsfc_run(command, run_args=None):
+            run_args = run_args or []
+            self.assertIn("-v", run_args)
+            self.assertTrue(any(arg.endswith(":/rsfc_project") for arg in run_args))
+            workdir = run_args[run_args.index("-w") + 1] if "-w" in run_args else None
+            if workdir is not None:
+                output_dir = os.path.join(workdir, "rsfc_output")
+            else:
+                output_dir = os.path.join(root, "rsfc_output")
+            os.makedirs(output_dir, exist_ok=True)
+            assessment_path = os.path.join(output_dir, "rsfc_assessment.json")
+            with open(assessment_path, "w") as f:
+                json.dump({"checks": []}, f)
+            return SimpleNamespace(stdout="", stderr="")
+
+        fake_executor = FakeExecutor()
+        fake_executor.run = fake_rsfc_run
+
+        plugin = RSFC.__new__(RSFC)
+        plugin.context = Context(github_token="token", local_path="/tmp/project")
+        plugin.executor = fake_executor
+        plugin._cache = {}
+
+        with tempfile.TemporaryDirectory() as root:
+            with patch.dict(os.environ, self._env(root), clear=True):
+                plugin.execute("/tmp/project", "local")
