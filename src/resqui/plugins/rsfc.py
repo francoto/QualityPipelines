@@ -31,6 +31,20 @@ class RSFC(IndicatorPlugin):
         "has_contribution_guidelines",
         "software_is_containerized",
     ]
+    local_mode_unsupported_checks = {
+        "RSFC-01-1",
+        "RSFC-03-1",
+        "RSFC-03-2",
+        "RSFC-03-3",
+        "RSFC-03-4",
+        "RSFC-03-5",
+        "RSFC-04-1",
+        "RSFC-04-5",
+        "RSFC-07-2",
+        "RSFC-09-1",
+        "RSFC-14-1",
+        "RSFC-20-1",
+    }
 
     def __init__(self, context):
         self.context = context
@@ -55,21 +69,18 @@ class RSFC(IndicatorPlugin):
                     "-w",
                     container_workspace,
                 ]
-                assessment_fpath = os.path.join(
-                    workspace.local_path, "rsfc_output", assessment_filename
-                )
+                assessment_fpath = os.path.join(workspace.local_path, "rsfc_output", assessment_filename)
             else:
                 run_args = [
                     "--rm",
                     *workspace.docker_mount_args("/rsfc/rsfc_output"),
                 ]
-                assessment_fpath = os.path.join(
-                    workspace.local_path, assessment_filename
-                )
+                assessment_fpath = os.path.join(workspace.local_path, assessment_filename)
 
             if self.context.local_path is not None:
                 local_project_path = os.path.abspath(self.context.local_path)
                 project_container_path = "/rsfc_project"
+                # add the project path as a volume to mount
                 run_args += ["-v", f"{local_project_path}:{project_container_path}"]
                 command = ["--local", project_container_path]
             else:
@@ -102,264 +113,86 @@ class RSFC(IndicatorPlugin):
 
         return report
 
-    def persistent_and_unique_identifier(self, url, branch_hash_or_tag):
-        # Last version (do not erase)
-        """report = self.execute(url, branch_hash_or_tag)
-        checks = report["checks"]
-        check_list = []
+    def _skipped_check_result(self, check_id):
+        print(f"⚠️  RSFC local mode does not run {check_id}; skipping indicator")
+        return CheckResult(
+            process="RSFC local mode",
+            status_id="schema:FailedActionStatus",
+            output="missing",
+            evidence=(
+                f"RSFC local analysis does not generate check '{check_id}'. The indicator is skipped for local mode."
+            ),
+            success=False,
+        )
 
-        for check in checks:
-            if "persistent_and_unique_identifier" in check["assessesIndicator"]["@id"]:
-                if check["output"] == "true":
-                    success = True
-                else:
-                    success = False
+    def _check_result(self, report, check_id):
+        if self.context.local_path is not None and check_id in self.local_mode_unsupported_checks:
+            return self._skipped_check_result(check_id)
 
-                check_res = CheckResult(
-                    process=check["process"],
-                    status_id=check["status"]["@id"],
-                    output=check["output"],
-                    evidence=check["evidence"],
-                    success=success,
-                )
+        check = report.get(check_id)
+        if check is None:
+            raise KeyError(f"RSFC did not generate the expected check with id '{check_id}'")
 
-                check_list.append(check_res)
-
-        return check_list"""
-
-        report = self.execute(url, branch_hash_or_tag)
-        check = report["RSFC-01-1"]
-        if check["output"] == "true":
-            success = True
-        else:
-            success = False
-        check = CheckResult(
+        return CheckResult(
             process=check["process"],
             status_id=check["status"]["@id"],
             output=check["output"],
             evidence=check["evidence"],
-            success=success,
+            success=check["output"] == "true",
         )
 
-        return check
+    def persistent_and_unique_identifier(self, url, branch_hash_or_tag):
+        report = self.execute(url, branch_hash_or_tag)
+        return self._check_result(report, "RSFC-01-1")
 
     def software_has_documentation(self, url, branch_hash_or_tag):
         report = self.execute(url, branch_hash_or_tag)
-        check = report["RSFC-05-3"]
-        if check["output"] == "true":
-            success = True
-        else:
-            success = False
-        check = CheckResult(
-            process=check["process"],
-            status_id=check["status"]["@id"],
-            output=check["output"],
-            evidence=check["evidence"],
-            success=success,
-        )
-
-        return check
+        return self._check_result(report, "RSFC-05-3")
 
     def requirements_specified(self, url, branch_hash_or_tag):
         report = self.execute(url, branch_hash_or_tag)
-        check = report["RSFC-13-1"]
-        if check["output"] == "true":
-            success = True
-        else:
-            success = False
-        check = CheckResult(
-            process=check["process"],
-            status_id=check["status"]["@id"],
-            output=check["output"],
-            evidence=check["evidence"],
-            success=success,
-        )
-
-        return check
+        return self._check_result(report, "RSFC-13-1")
 
     def has_releases(self, url, branch_hash_or_tag):
         report = self.execute(url, branch_hash_or_tag)
-        check = report["RSFC-03-1"]
-        if check["output"] == "true":
-            success = True
-        else:
-            success = False
-        check = CheckResult(
-            process=check["process"],
-            status_id=check["status"]["@id"],
-            output=check["output"],
-            evidence=check["evidence"],
-            success=success,
-        )
-
-        return check
+        return self._check_result(report, "RSFC-03-1")
 
     def software_has_license(self, url, branch_hash_or_tag):
         report = self.execute(url, branch_hash_or_tag)
-        check = report["RSFC-15-1"]
-        if check["output"] == "true":
-            success = True
-        else:
-            success = False
-        check = CheckResult(
-            process=check["process"],
-            status_id=check["status"]["@id"],
-            output=check["output"],
-            evidence=check["evidence"],
-            success=success,
-        )
-
-        return check
+        return self._check_result(report, "RSFC-15-1")
 
     def descriptive_metadata(self, url, branch_hash_or_tag):
         report = self.execute(url, branch_hash_or_tag)
-        check = report["RSFC-04-4"]
-        if check["output"] == "true":
-            success = True
-        else:
-            success = False
-        check = CheckResult(
-            process=check["process"],
-            status_id=check["status"]["@id"],
-            output=check["output"],
-            evidence=check["evidence"],
-            success=success,
-        )
-
-        return check
+        return self._check_result(report, "RSFC-04-4")
 
     def versioning_standards_use(self, url, branch_hash_or_tag):
         report = self.execute(url, branch_hash_or_tag)
-        check = report["RSFC-03-6"]
-        if check["output"] == "true":
-            success = True
-        else:
-            success = False
-        check = CheckResult(
-            process=check["process"],
-            status_id=check["status"]["@id"],
-            output=check["output"],
-            evidence=check["evidence"],
-            success=success,
-        )
-
-        return check
+        return self._check_result(report, "RSFC-03-6")
 
     def version_control_use(self, url, branch_hash_or_tag):
         report = self.execute(url, branch_hash_or_tag)
-        check = report["RSFC-09-1"]
-        if check["output"] == "true":
-            success = True
-        else:
-            success = False
-        check = CheckResult(
-            process=check["process"],
-            status_id=check["status"]["@id"],
-            output=check["output"],
-            evidence=check["evidence"],
-            success=success,
-        )
-
-        return check
+        return self._check_result(report, "RSFC-09-1")
 
     def software_has_tests(self, url, branch_hash_or_tag):
         report = self.execute(url, branch_hash_or_tag)
-        check = report["RSFC-14-1"]
-        if check["output"] == "true":
-            success = True
-        else:
-            success = False
-        check = CheckResult(
-            process=check["process"],
-            status_id=check["status"]["@id"],
-            output=check["output"],
-            evidence=check["evidence"],
-            success=success,
-        )
-
-        return check
+        return self._check_result(report, "RSFC-14-1")
 
     def software_has_citation(self, url, branch_hash_or_tag):
         report = self.execute(url, branch_hash_or_tag)
-        check = report["RSFC-18-1"]
-        if check["output"] == "true":
-            success = True
-        else:
-            success = False
-        check = CheckResult(
-            process=check["process"],
-            status_id=check["status"]["@id"],
-            output=check["output"],
-            evidence=check["evidence"],
-            success=success,
-        )
-
-        return check
+        return self._check_result(report, "RSFC-18-1")
 
     def repository_workflows(self, url, branch_hash_or_tag):
         report = self.execute(url, branch_hash_or_tag)
-        check = report["RSFC-19-1"]
-        if check["output"] == "true":
-            success = True
-        else:
-            success = False
-        check = CheckResult(
-            process=check["process"],
-            status_id=check["status"]["@id"],
-            output=check["output"],
-            evidence=check["evidence"],
-            success=success,
-        )
-
-        return check
+        return self._check_result(report, "RSFC-19-1")
 
     def archived_in_software_heritage(self, url, branch_hash_or_tag):
         report = self.execute(url, branch_hash_or_tag)
-        check = report["RSFC-08-1"]
-        if check["output"] == "true":
-            success = True
-        else:
-            success = False
-        check = CheckResult(
-            process=check["process"],
-            status_id=check["status"]["@id"],
-            output=check["output"],
-            evidence=check["evidence"],
-            success=success,
-        )
-
-        return check
+        return self._check_result(report, "RSFC-08-1")
 
     def has_contribution_guidelines(self, url, branch_hash_or_tag):
         report = self.execute(url, branch_hash_or_tag)
-        check = report["RSFC-21-1"]
-        if check["output"] == "true":
-            success = True
-        else:
-            success = False
-        check = CheckResult(
-            process=check["process"],
-            status_id=check["status"]["@id"],
-            output=check["output"],
-            evidence=check["evidence"],
-            success=success,
-        )
-
-        return check
+        return self._check_result(report, "RSFC-21-1")
 
     def software_is_containerized(self, url, branch_hash_or_tag):
         report = self.execute(url, branch_hash_or_tag)
-        check = report["RSFC-22-1"]
-        if check["output"] == "true":
-            success = True
-        else:
-            success = False
-        check = CheckResult(
-            process=check["process"],
-            status_id=check["status"]["@id"],
-            output=check["output"],
-            evidence=check["evidence"],
-            success=success,
-        )
-
-        return check
+        return self._check_result(report, "RSFC-22-1")
